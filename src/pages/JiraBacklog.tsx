@@ -198,9 +198,12 @@ function SortableKanbanItem({ item, id, colId }: { item: Item; id: string; colId
 
 const JiraBacklog = () => {
   const [columns, setColumns] = useState<Columns>(initialData.columns);
+  const [viewMode, setViewMode] = useState<'kanban' | 'grid'>('kanban');
+  const [searchTerm, setSearchTerm] = useState('');
   const sensors = useSensors(useSensor(PointerSensor));
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (viewMode !== 'kanban') return;
     const { active, over } = event;
     if (!over) return;
     let sourceColId = '';
@@ -258,50 +261,219 @@ const JiraBacklog = () => {
     }
   };
 
+  const renderGridTable = () => {
+    const allItems: Item[] = Object.values(columns).flatMap(col => col.items);
+    const filtered = allItems.filter(item => {
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) return true;
+      return (
+        item.content.toLowerCase().includes(term) ||
+        item.assignee.toLowerCase().includes(term)
+      );
+    });
+    return (
+      <div style={{ width: '100%', marginTop: 24 }}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, background: '#fff', borderRadius: 12, boxShadow: '0 1px 8px #0001', overflow: 'hidden' }}>
+          <thead>
+            <tr style={{ background: '#f4f5f7', color: '#2176ff', fontWeight: 700, fontSize: 16 }}>
+              <th style={{ padding: '12px 8px', textAlign: 'left' }}>Status</th>
+              <th style={{ padding: '12px 8px', textAlign: 'left' }}>Assignee</th>
+              <th style={{ padding: '12px 8px', textAlign: 'left' }}>Priority</th>
+              <th style={{ padding: '12px 8px', textAlign: 'left', minWidth: 120 }}>Type</th>
+              <th style={{ padding: '12px 8px', textAlign: 'left' }}>Content</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: '#888' }}>No items found.</td></tr>
+            ) : filtered.map(item => (
+              <tr key={item.id} style={{ borderBottom: '1px solid #f0f0f0', fontSize: 15 }}>
+                <td style={{ padding: '10px 8px', color: STATUS_COLOR[item.status as keyof typeof STATUS_COLOR], fontWeight: 600, textAlign: 'left' }}>{item.status}</td>
+                <td style={{ padding: '10px 8px', fontWeight: 500, textAlign: 'left' }}>{item.assignee}</td>
+                <td style={{ padding: '10px 8px', color: item.priority.color, fontWeight: 500, textAlign: 'left' }}>{item.priority.label}</td>
+                <td style={{ padding: '10px 8px', color: item.type.color, textAlign: 'left', minWidth: 120 }}>{item.type.icon} {item.type.label}</td>
+                <td style={{ padding: '10px 8px', textAlign: 'left' }}>{item.content}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding: 24 }}>
-     
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-          {Object.entries(columns).map(([colId, col]) => (
-            <div
-              key={colId}
-              style={{
-                background: '#f4f5f7',
-                padding: 12,
-                width: 280,
-                minHeight: 400,
-                borderRadius: 8,
-                boxShadow: '0 2px 8px #0001',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-              data-col={colId}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <h4 style={{ textAlign: 'center', margin: '8px 0 8px 0' }}>{col.name}</h4>
-                <span style={{
-                  background: STATUS_COLOR[col.name as keyof typeof STATUS_COLOR],
-                  color: '#fff',
-                  borderRadius: 12,
-                  padding: '2px 10px',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  minWidth: 28,
-                  textAlign: 'center',
-                  marginLeft: 8,
-                  boxShadow: '0 1px 2px #0001',
-                }}>{col.items.length}</span>
-              </div>
-              <SortableContext items={col.items.map((item) => item.id)} strategy={verticalListSortingStrategy} id={colId}>
-                {col.items.map((item) => (
-                  <SortableKanbanItem key={item.id} item={item} id={item.id} colId={colId} />
-                ))}
-              </SortableContext>
-            </div>
-          ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <button style={{
+              padding: '7px 16px 7px 12px',
+              borderRadius: 6,
+              border: '1.5px solid #ccc',
+              background: '#f4f5f7',
+              color: '#444',
+              fontWeight: 500,
+              fontSize: 15,
+              cursor: 'pointer',
+              outline: 'none',
+              minWidth: 110,
+              marginRight: 2,
+            }}>
+              Basic Filters <span style={{ fontSize: 13, marginLeft: 4 }}>▼</span>
+            </button>
+          </div>
+          <input
+            type="text"
+            placeholder="Filter by name"
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: '1.5px solid #ccc',
+              fontSize: 15,
+              outline: 'none',
+              minWidth: 170,
+              background: '#fff',
+              color: '#333',
+              boxShadow: '0 1px 4px #0001',
+              marginRight: 2,
+            }}
+            disabled
+          />
+          <select style={{
+            padding: '7px 16px 7px 12px',
+            borderRadius: 6,
+            border: '1.5px solid #ccc',
+            background: '#f4f5f7',
+            color: '#444',
+            fontWeight: 500,
+            fontSize: 15,
+            cursor: 'pointer',
+            outline: 'none',
+            minWidth: 100,
+            marginRight: 2,
+          }} disabled>
+            <option>Project</option>
+          </select>
+          <select style={{
+            padding: '7px 16px 7px 12px',
+            borderRadius: 6,
+            border: '1.5px solid #ccc',
+            background: '#f4f5f7',
+            color: '#444',
+            fontWeight: 500,
+            fontSize: 15,
+            cursor: 'pointer',
+            outline: 'none',
+            minWidth: 110,
+            marginRight: 2,
+          }} disabled>
+            <option>Issue Type</option>
+          </select>
+          <select style={{
+            padding: '7px 16px 7px 12px',
+            borderRadius: 6,
+            border: '1.5px solid #ccc',
+            background: '#f4f5f7',
+            color: '#444',
+            fontWeight: 500,
+            fontSize: 15,
+            cursor: 'pointer',
+            outline: 'none',
+            minWidth: 90,
+            marginRight: 2,
+          }} disabled>
+            <option>Status</option>
+          </select>
+          <span style={{ color: '#2176ff', fontWeight: 500, fontSize: 15, cursor: 'pointer', marginRight: 8 }}>+ More filters</span>
+          <span style={{ color: '#888', fontWeight: 500, fontSize: 15, cursor: 'pointer' }}>Clear filters</span>
         </div>
-      </DndContext>
+        <div style={{ display: 'flex', gap: 0, background: '#f4f5f7', borderRadius: 16, padding: 2 }}>
+          <button
+            onClick={() => setViewMode('kanban')}
+            style={{
+              padding: '8px 22px',
+              borderRadius: 12,
+              border: viewMode === 'kanban' ? '1.5px solid #ccc' : '1.5px solid transparent',
+              background: viewMode === 'kanban' ? '#fff' : '#f4f5f7',
+              color: viewMode === 'kanban' ? '#333' : '#888',
+              fontWeight: viewMode === 'kanban' ? 700 : 400,
+              fontSize: 20,
+              cursor: viewMode === 'kanban' ? 'default' : 'pointer',
+              outline: 'none',
+              transition: 'all 0.18s',
+              boxShadow: 'none',
+              marginRight: 2,
+            }}
+            disabled={viewMode === 'kanban'}
+          >
+            Kanban
+          </button>
+          <button
+            onClick={() => setViewMode('grid')}
+            style={{
+              padding: '8px 22px',
+              borderRadius: 12,
+              border: viewMode === 'grid' ? '1.5px solid #ccc' : '1.5px solid transparent',
+              background: viewMode === 'grid' ? '#fff' : '#f4f5f7',
+              color: viewMode === 'grid' ? '#333' : '#888',
+              fontWeight: viewMode === 'grid' ? 700 : 400,
+              fontSize: 20,
+              cursor: viewMode === 'grid' ? 'default' : 'pointer',
+              outline: 'none',
+              transition: 'all 0.18s',
+              boxShadow: 'none',
+            }}
+            disabled={viewMode === 'grid'}
+          >
+            Grid
+          </button>
+        </div>
+      </div>
+      {viewMode === 'kanban' ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
+            {Object.entries(columns).map(([colId, col]) => (
+              <div
+                key={colId}
+                style={{
+                  background: '#f4f5f7',
+                  padding: 12,
+                  width: 280,
+                  minHeight: 400,
+                  borderRadius: 8,
+                  boxShadow: '0 2px 8px #0001',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+                data-col={colId}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <h4 style={{ textAlign: 'center', margin: '8px 0 8px 0' }}>{col.name}</h4>
+                  <span style={{
+                    background: STATUS_COLOR[col.name as keyof typeof STATUS_COLOR],
+                    color: '#fff',
+                    borderRadius: 12,
+                    padding: '2px 10px',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    minWidth: 28,
+                    textAlign: 'center',
+                    marginLeft: 8,
+                    boxShadow: '0 1px 2px #0001',
+                  }}>{col.items.length}</span>
+                </div>
+                <SortableContext items={col.items.map((item) => item.id)} strategy={verticalListSortingStrategy} id={colId}>
+                  {col.items.map((item) => (
+                    <SortableKanbanItem key={item.id} item={item} id={item.id} colId={colId} />
+                  ))}
+                </SortableContext>
+              </div>
+            ))}
+          </div>
+        </DndContext>
+      ) : (
+        renderGridTable()
+      )}
     </div>
   );
 };

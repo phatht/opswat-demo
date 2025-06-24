@@ -16,7 +16,7 @@ function App() {
             <ul style={{ display: 'flex', listStyle: 'none', padding: 0, marginBottom: '2rem' }}>
               <li style={{ margin: '0 1rem' }}><NavLink className="App-link" to="/jira-backlog">Jira backlog</NavLink></li>
               <li style={{ margin: '0 1rem' }}><NavLink className="App-link" to="/spa-workflow">SPA workflow</NavLink></li>
-              <li style={{ margin: '0 1rem' }}><NavLink className="App-link" to="/more">More</NavLink></li>
+              <li style={{ margin: '0 1rem' }}><NavLink className="App-link" to="/more">Weather App</NavLink></li>
             </ul>
           </nav> 
         </header> 

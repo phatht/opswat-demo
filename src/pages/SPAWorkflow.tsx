@@ -80,7 +80,7 @@ const Sidebar = ({ onDragStart }: { onDragStart: (event: React.DragEvent, nodeTy
 );
 
 // Custom Node: hiển thị điểm đầu/cuối, cho phép rename, có icon công nghệ
-const CustomNode = ({ id, data, selected, isConnectable, xPos, yPos, dragging }: any) => {
+const CustomNode = ({ id, data, selected, isConnectable, xPos, yPos, dragging, ...props }: any) => {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(data.label);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -101,12 +101,75 @@ const CustomNode = ({ id, data, selected, isConnectable, xPos, yPos, dragging }:
     if (e.key === 'Enter') handleBlur();
   };
 
+  // Nếu là Agent node
+  if (data.type === 'agent') {
+    // Kiểm tra có edge nào nối từ agent đến tool không
+    const edges = props?.edges || [];
+    const hasToolEdge = edges.some((e: any) => e.source === id && e.target !== id && e.targetNode?.data?.type === 'tool');
+    return (
+      <div style={{
+        position: 'relative',
+        minWidth: 180,
+        minHeight: 70,
+        background: selected ? '#f6fafd' : '#fff',
+        border: selected ? '1.5px solid #2176ff' : '1.5px solid #888',
+        borderRadius: 12,
+        padding: '16px 28px 16px 20px',
+        textAlign: 'left',
+        boxShadow: dragging ? '0 2px 8px #2176ff44' : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        fontFamily: 'inherit',
+      }}>
+        {/* Điểm đầu (hình tròn xám) */}
+        <Handle type="target" position={Position.Left} style={{ background: '#888', width: 14, height: 14, borderRadius: '50%', left: -10, top: '50%', transform: 'translateY(-50%)' }} isConnectable={isConnectable} />
+        {/* Icon robot */}
+        <div style={{ fontSize: 32, marginRight: 16, display: 'flex', alignItems: 'center' }}>
+          <span role="img" aria-label="ai-agent">🤖</span>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 20, color: '#222', marginBottom: 2 }}>AI Agent</div>
+          <div style={{ fontSize: 15, color: '#888', fontWeight: 500 }}>Tools Agent</div>
+        </div>
+        {/* Dấu cộng nếu chưa có edge tới tool */}
+        {!hasToolEdge && (
+          <button
+            style={{
+              position: 'absolute',
+              right: 6,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: '#fff',
+              border: '1.5px solid #2176ff',
+              borderRadius: '50%',
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#2176ff',
+              fontWeight: 700,
+              fontSize: 20,
+              cursor: 'pointer',
+              boxShadow: '0 1px 4px #2176ff22',
+              zIndex: 2,
+            }}
+            title="Add Tool"
+            onClick={e => { e.stopPropagation(); alert('Add Tool (demo)'); }}
+          >+
+          </button>
+        )}
+        {/* Điểm cuối (dấu ngạch) */}
+        <Handle type="source" position={Position.Right} style={{ background: '#2176ff', width: 14, height: 4, borderRadius: 2, right: -10, top: '50%', transform: 'translateY(-50%)' }} isConnectable={isConnectable} />
+      </div>
+    );
+  }
+
+  // Node mặc định
   return (
     <div style={{ position: 'relative', minWidth: 80, minHeight: 40, background: selected ? '#e3f2fd' : '#fff', border: '2px solid #1976d2', borderRadius: 8, padding: 8, textAlign: 'center', boxShadow: dragging ? '0 2px 8px #1976d2' : undefined }}>
       {/* Điểm đầu (hình tròn xám) */}
       <Handle type="target" position={Position.Left} style={{ background: '#888', width: 16, height: 16, borderRadius: '50%', left: -10, top: '50%', transform: 'translateY(-50%)' }} isConnectable={isConnectable} />
-      {/* Điểm cuối (dấu ngạch) */}
-      <Handle type="source" position={Position.Right} style={{ background: '#1976d2', width: 16, height: 4, borderRadius: 2, right: -10, top: '50%', transform: 'translateY(-50%)' }} isConnectable={isConnectable} />
       {/* Icon công nghệ */}
       <div style={{marginBottom: 2}}>{data.icon}</div>
       {/* Label hoặc input rename */}
@@ -256,6 +319,10 @@ const SPAWorkflow = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const [selectedToolId, setSelectedToolId] = useState<string|null>(null);
+  const [sliderOpen, setSliderOpen] = useState(false);
+  const [toolEnabled, setToolEnabled] = useState(true);
+  const [toolName, setToolName] = useState('');
 
   // Chỉ cho phép kết nối giữa Agent và Tool (hai chiều)
   const isValidConnection = useCallback((connection: Connection) => {
@@ -361,9 +428,83 @@ const SPAWorkflow = () => {
     setEdges(updatedEdges);
   }, [nodes, edges, setNodes, setEdges]);
 
+  // Khi click vào node Tool, mở slider
+  const onNodeClick = useCallback((event: any, node: any) => {
+    if (node.data?.type === 'tool') {
+      setSelectedToolId(node.id);
+      setToolName(node.data.label || '');
+      setSliderOpen(true);
+      setToolEnabled(true); // hoặc lấy từ node.data nếu có
+    } else {
+      setSliderOpen(false);
+      setSelectedToolId(null);
+    }
+  }, []);
+
+  // Đổi tên tool
+  const handleToolNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setToolName(e.target.value);
+    setNodes(nds => nds.map(n => n.id === selectedToolId ? { ...n, data: { ...n.data, label: e.target.value, onLabelChange } } : n));
+  };
+
+  // Đóng slider khi click ra ngoài
+  const handleCloseSlider = () => {
+    setSliderOpen(false);
+    setSelectedToolId(null);
+  };
+
+  // Lấy node tool đang chọn
+  const selectedTool = nodes.find(n => n.id === selectedToolId);
+
   return (
     <ReactFlowProvider>
       <div style={{ display: 'flex', height: 'calc(100vh - 64px)' }}>
+        {/* Slider bên trái */}
+        {sliderOpen && selectedTool && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: 340,
+            height: '100vh',
+            background: '#fff',
+            boxShadow: '2px 0 16px #0002',
+            zIndex: 100,
+            padding: 28,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 24,
+            borderRight: '1.5px solid #e0e0e0',
+            transition: 'transform 0.2s',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 22, marginBottom: 8 }}>Tool Settings</div>
+            <label style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>Tool Name</label>
+            <input
+              type="text"
+              value={toolName}
+              onChange={handleToolNameChange}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 6,
+                border: '1.5px solid #2176ff',
+                fontSize: 16,
+                marginBottom: 12,
+                outline: 'none',
+              }}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500, fontSize: 15, marginBottom: 12 }}>
+              <input type="checkbox" checked={toolEnabled} onChange={e => setToolEnabled(e.target.checked)} />
+              Enable Tool
+            </label>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>Events</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ color: '#2176ff', fontWeight: 500 }}>On Success</span>
+              <span style={{ color: '#e67e22', fontWeight: 500 }}>On Error</span>
+              <span style={{ color: '#43a047', fontWeight: 500 }}>On Complete</span>
+            </div>
+            <button onClick={handleCloseSlider} style={{ position: 'absolute', top: 18, right: 18, background: 'none', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer' }}>×</button>
+          </div>
+        )}
         <Sidebar onDragStart={onNodeDragStart} />
         <div style={{ flex: 1, height: '100%' }}>
           <ReactFlow
@@ -382,6 +523,7 @@ const SPAWorkflow = () => {
             onNodesDelete={handleNodesDelete}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
+            onNodeClick={onNodeClick}
           >
             <MiniMap />
             <Controls />
