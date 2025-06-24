@@ -1,4 +1,4 @@
-# Getting Started with Create React App with version ###"react": "^19.1.0"
+# Getting Started with Create React App with version react: "^19.1.0"
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
@@ -6,7 +6,7 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 In the project directory, you can run:
 
-### `npm i` or ### `npm i -f`
+### `npm i` or `npm i -f`
 
 
 ### `npm run start`
